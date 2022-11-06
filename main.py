@@ -1,13 +1,12 @@
 import cv2
 import numpy as np
 import HandTrackingModule as htm
-import time
 import mouse
 import tkinter as tk
 
 ##########################
 wCam, hCam = 640, 480
-frameR = 50  # Frame Reduction
+frameR = 100  # Frame Reduction
 smoothening = 7
 #########################
 
@@ -29,8 +28,9 @@ dclicked = False
 rclicked = False
 
 while True:
-    # 1. Find hand Landmarks
+    #1. Preprocess
     success, img_o = cap.read()
+    # 1.1 Contrast stetching with CLACHE
     # img_o = cv2.normalize(img_o, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     # img_hsv = cv2.cvtColor(img_o, cv2.COLOR_BGR2HSV)
     # h, s, v = img_hsv[:, :, 0], img_hsv[:, :, 1], img_hsv[:, :, 2]
@@ -39,20 +39,22 @@ while True:
     # hsv_img = np.dstack((h, s, v))
     # bgr_stretched = cv2.cvtColor(hsv_img, cv2.COLOR_HSV2RGB)
 
+    # 1.2 Image sharpening
     kernel = np.array([[0, -1, 0],
                        [-1, 5, -1],
                        [0, -1, 0]])
     image_sharp = cv2.filter2D(src=img_o, ddepth=-1, kernel=kernel)
 
+    # 2. Find hand Landmarks
     img = detector.findHands(image_sharp)
     lmList, bbox = detector.findPosition(img)
     if lmList != None:
-        # 2. Get the tip of the index and middle fingers
+        # 3. Get the tip of the index and middle fingers
         if len(lmList) != 0:
             x1, y1 = lmList[8][1:]
             x2, y2 = lmList[12][1:]
 
-        # 3. Check which fingers are up
+        # 4. Check which fingers are up
         try:
             fingers = detector.fingersUp()
         except:
@@ -62,7 +64,7 @@ while True:
 
         cv2.rectangle(img, (frameR, frameR), (wCam - frameR, hCam - frameR),
                       (255, 0, 255), 2)
-        # 4. Only Index Finger : Moving Mode
+        # 4.1 Only Index Finger : Moving Mode
         if fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0:
             clicked = False
             dclicked = False
@@ -79,24 +81,29 @@ while True:
             cv2.circle(img, (x1, y1), 15, (255, 0, 255), cv2.FILLED)
             delta = y3 - plocY
             plocX, plocY = clocX, clocY
-        # 7.1 : Thumb and index fingers
+
+        # 4.2 : Index and Middle fingers: Single Left Click
         if fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0:
             print("left click")
             if not clicked:
                 clicked = True
                 mouse.click()
-        if fingers[1] == 0 and fingers[2] == 1 and fingers[3] == 0 and fingers[4] == 0:
+
+        # 4.2 : Index, Middle, Ring and Little fingers: Double Left Click
+        if fingers[1] == 1 and fingers[2] == 1 and fingers[3] == 1 and fingers[4] == 1:
             print("dleft click")
             if not dclicked:
                 dclicked = True
                 mouse.double_click()
-        # 7.1 : index and little fingers
+
+        # 4.3 : Index and Little fingers: Single Right Click
         if fingers[1] == 1 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 1:
             print("right click")
             if not rclicked:
                 rclicked = True
                 mouse.right_click()
 
+        # 4.4 Wheel Mode
         # if fingers[1] == 0 and fingers[0] == 0 and fingers[2] == 0 and fingers[3] == 0 and fingers[4] == 0:
         #     print("wheel")
         #     if delta < 0:
@@ -104,19 +111,7 @@ while True:
         #     if delta > 0:
         #         mouse.wheel(delta=-1)
 
-        # 8. Both Index and middle fingers are up : Clicking Mode
-        # if fingers[1] == 1 and fingers[2] == 1:
-        #     # 9. Find distance between fingers
-        #     length, img, lineInfo = detector.findDistance(8, 12, img)
-        #     print(length)
-        #     # 10. Click mouse if distance short
-        #     if length < 40:
-        #         cv2.circle(img, (lineInfo[4], lineInfo[5]),
-        #                    15, (0, 255, 0), cv2.FILLED)
-        #         # autopy.mouse.click()  # kivenni
-        #         mouse.click()
-
-    # 12. Display
+    # 5. Display
     flip = cv2.flip(img, 1)
     cv2.imshow("Image", flip)
     cv2.waitKey(1)
